@@ -15,6 +15,8 @@
  */
 package com.example.android.pets;
 
+import android.content.ContentValues;
+import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.support.v4.app.NavUtils;
 import android.support.v7.app.AppCompatActivity;
@@ -26,8 +28,12 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.Spinner;
+import android.widget.Toast;
 
-import com.example.android.pets.data.PetsContract;
+import com.example.android.pets.data.PetContract;
+import com.example.android.pets.data.PetContract.PetEntry;
+import com.example.android.pets.data.PetDbHelper;
+
 
 /**
  * Allows user to create a new pet or edit an existing one.
@@ -51,6 +57,7 @@ public class EditorActivity extends AppCompatActivity {
      * 0 for unknown gender, 1 for male, 2 for female.
      */
     private int mGender = 0;
+    PetDbHelper mPetDbHelper = new PetDbHelper(this);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -88,11 +95,11 @@ public class EditorActivity extends AppCompatActivity {
                 String selection = (String) parent.getItemAtPosition(position);
                 if (!TextUtils.isEmpty(selection)) {
                     if (selection.equals(getString(R.string.gender_male))) {
-                        mGender = PetsContract.PetsEntry.GENDER_MALE; // Male
+                        mGender = PetContract.PetEntry.GENDER_MALE; // Male
                     } else if (selection.equals(getString(R.string.gender_female))) {
-                        mGender = PetsContract.PetsEntry.GENDER_FEMALE; // Female
+                        mGender = PetContract.PetEntry.GENDER_FEMALE; // Female
                     } else {
-                        mGender = PetsContract.PetsEntry.GENDER_UNKNOWN; // Unknown
+                        mGender = PetContract.PetEntry.GENDER_UNKNOWN; // Unknown
                     }
                 }
             }
@@ -112,14 +119,34 @@ public class EditorActivity extends AppCompatActivity {
         getMenuInflater().inflate(R.menu.menu_editor, menu);
         return true;
     }
+    void insertPet()
+    {
+        String name = mNameEditText.getText().toString().trim();
+        String breed = mBreedEditText.getText().toString().trim();
 
+        int weight = Integer.parseInt(mWeightEditText.getText().toString().trim());
+        ContentValues mContentValues = new ContentValues();
+        mContentValues.put(PetEntry.COLUMN_PET_NAME,name);
+        mContentValues.put(PetEntry.COLUMN_PET_BREED,breed);
+        mContentValues.put(PetEntry.COLUMN_PET_GENDER,mGender   );
+        mContentValues.put(PetEntry.COLUMN_PET_WEIGHT,weight);
+        SQLiteDatabase DB = mPetDbHelper.getWritableDatabase();
+        long returnId = DB.insert(PetEntry.TABLE_NAME,null,mContentValues);
+        if(returnId != -1)
+        {
+            Toast.makeText( this, "Successfully Saved", Toast.LENGTH_SHORT).show();
+        }
+        else
+            Toast.makeText(this,"Error Saving",Toast.LENGTH_LONG).show();
+    }
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         // User clicked on a menu option in the app bar overflow menu
         switch (item.getItemId()) {
             // Respond to a click on the "Save" menu option
             case R.id.action_save:
-                // Do nothing for now
+                insertPet();
+                finish();
                 return true;
             // Respond to a click on the "Delete" menu option
             case R.id.action_delete:
