@@ -15,32 +15,45 @@
  */
 package com.example.android.pets;
 
+import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
+
+import android.app.LoaderManager;
+import android.content.CursorLoader;
+import android.content.Loader;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.AdapterView;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
+
+
+
+
 
 import com.example.android.pets.data.PetContract.PetEntry;
 import com.example.android.pets.data.PetDbHelper;
 
 /**
- * Displays list of pets that were entered and stored in the app.
+     * Displays list of pets that were entered and stored in the app.
  */
-public class CatalogActivity extends AppCompatActivity {
+public class CatalogActivity extends AppCompatActivity implements LoaderManager.LoaderCallbacks<Cursor> {
 
     /** Database helper that will provide us access to the database */
-    private PetDbHelper mDbHelper;
-
+    private PetDbHelper mDbHelper = new PetDbHelper(this);
+    PetCursorAdapter mCursorAdapter;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -49,54 +62,34 @@ public class CatalogActivity extends AppCompatActivity {
         // Setup FAB to open EditorActivity
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener() {
-            @Override
+                @Override
             public void onClick(View view) {
                 Intent intent = new Intent(CatalogActivity.this, EditorActivity.class);
                 startActivity(intent);
             }
         });
-
-        // To access our database, we instantiate our subclass of SQLiteOpenHelper
-        // and pass the context, which is the current activity.
-        mDbHelper = new PetDbHelper(this);
-    }
-
-    @Override
-    protected void onStart() {
-        super.onStart();
-        displayDatabaseInfo();
-    }
-
-    /**
-     * Temporary helper method to display information in the onscreen TextView about the state of
-     * the pets database.
-     */
-    private void displayDatabaseInfo() {
-        // Define a projection that specifies which columns from the database
-        // you will actually use after this query.
-        String[] projection = {
-                PetEntry._ID,
-                PetEntry.COLUMN_PET_NAME,
-                PetEntry.COLUMN_PET_BREED,
-                PetEntry.COLUMN_PET_GENDER,
-                PetEntry.COLUMN_PET_WEIGHT };
-
-        // Perform a query on the provider using the ContentResolver.
-        // Use the {@link PetEntry#CONTENT_URI} to access the pet data.
-        Cursor cursor = getContentResolver().query(
-                PetEntry.CONTENT_URI,   // The content URI of the pets table
-                projection,             // The columns to return for each row
-                null,                   // Selection criteria
-                null,                   // Selection criteria
-                null);                  // The sort order for the returned rows
-
         ListView listView = (ListView) findViewById(R.id.listview);
         View emptyListView = (View) findViewById(R.id.empty_view);
-        PetCursorAdapter adapter = new PetCursorAdapter(this,cursor);
         listView.setEmptyView(emptyListView);
-        listView.setAdapter(adapter);
+        //mDbHelper = new PetDbHelper(this);
+        mCursorAdapter = new PetCursorAdapter(this,null);
+        listView.setAdapter(mCursorAdapter);
+        listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                Intent editorActivity = new Intent(Intent.ACTION_VIEW);
 
+                Uri data= ContentUris.withAppendedId(PetEntry.CONTENT_URI,id);
+                editorActivity.setData(data);
+                editorActivity.setClass(getApplicationContext(),EditorActivity.class);
+                startActivity(editorActivity);
+            }
+        });
+        getLoaderManager().initLoader(0,null,this);
+        // To access our database, we instantiate our subclass of SQLiteOpenHelper
+        // and pass the context, which is the current activity.
     }
+
 
     /**
      * Helper method to insert hardcoded pet data into the database. For debugging purposes only.
@@ -124,10 +117,10 @@ public class CatalogActivity extends AppCompatActivity {
         Uri rUri = getContentResolver().insert(PetEntry.CONTENT_URI,values);
         if(rUri == null)
         {
-            Toast.makeText(this,getText(R.string.action_insert_failed),Toast.LENGTH_SHORT);
+            Toast.makeText(this,getText(R.string.action_insert_failed),Toast.LENGTH_SHORT).show();
         }
         else
-            Toast.makeText(this,getText(R.string.action_insert_successful),Toast.LENGTH_LONG);
+            Toast.makeText(this,getText(R.string.action_insert_successful),Toast.LENGTH_LONG).show();
     }
 
     @Override
@@ -145,13 +138,45 @@ public class CatalogActivity extends AppCompatActivity {
             // Respond to a click on the "Insert dummy data" menu option
             case R.id.action_insert_dummy_data:
                 insertPet();
-                displayDatabaseInfo();
+
                 return true;
             // Respond to a click on the "Delete all entries" menu option
             case R.id.action_delete_all_entries:
+                deleteAllPets();
                 // Do nothing for now
                 return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    void deleteAllPets()
+    {
+        Log.e("CatalogActivity.class",String.valueOf(PetEntry.CONTENT_URI));
+        int rowsDeleted = getContentResolver().delete(PetEntry.CONTENT_URI,null,null);
+        Log.e("CatalogActivity.class","Rows Deleted Count is :"+ rowsDeleted);
+    }
+
+    @NonNull
+    @Override
+    public Loader<Cursor> onCreateLoader(int i, @Nullable Bundle bundle) {
+        String[] projection = {PetEntry._ID,PetEntry.COLUMN_PET_NAME,PetEntry.COLUMN_PET_BREED};
+        /**This Loader will execute content provider with the given URI,parameters*/
+        return new CursorLoader(this,
+                PetEntry.CONTENT_URI,
+                projection,
+                null,
+                null,
+                null);
+
+    }
+
+    @Override
+    public void onLoadFinished(@NonNull Loader<Cursor> loader, Cursor cursor) {
+        mCursorAdapter.swapCursor(cursor);
+    }
+
+    @Override
+    public void onLoaderReset(@NonNull Loader<Cursor> loader) {
+        mCursorAdapter.swapCursor(null);
     }
 }
